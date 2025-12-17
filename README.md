@@ -175,61 +175,6 @@ curl http://localhost:8000/api/timeline
 curl http://localhost:8000/api/comparison/matrix
 ```
 
-## Comparison Matrix
-
-### Artifact Availability
-
-| Artifact | Local STDIO | Custom Remote | Official Remote |
-|----------|-------------|---------------|-----------------|
-| mcp.json config | Full | Full | Full |
-| Cursor logs | Full | Full | Full |
-| state.vscdb | Full | Full | Full |
-| agent-transcripts | Full | Full | Full |
-| Server request log | None | **Full** | None |
-| Server response log | None | **Full** | None |
-| File access log | None | **Full** | None |
-| Network capture | None | Full | Partial (encrypted) |
-
-### Forensic Capabilities
-
-| Capability | Local STDIO | Custom Remote | Official Remote |
-|------------|-------------|---------------|-----------------|
-| Timeline reconstruction | Medium | **High** | Medium |
-| Action attribution | Low | **High** | Medium |
-| Data exfiltration tracking | Low | **High** | Low |
-| Security event detection | Low | **High** | Low |
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Web Dashboard                             │
-│  Upload → Analysis → Entities → Timeline (Filter/Expand)     │
-└────────────────────────┬────────────────────────────────────┘
-                         │ REST API
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  FastAPI Backend                             │
-├─────────────────────────────────────────────────────────────┤
-│  Transformers:                                               │
-│  ├── VSCDBTransformer         (state.vscdb → conversations) │
-│  ├── AgentTranscriptTransformer (*.json → MCP calls)        │
-│  ├── CursorLogTransformer     (MCP *.log → server info)     │
-│  ├── ConfigTransformer        (mcp.json → entities)         │
-│  ├── NetworkTransformer       (*.har → JSON-RPC events)     │
-│  └── ServerLogTransformer     (*.jsonl → events)            │
-│                         ↓                                    │
-│  Server Inference:                                           │
-│  └── infer_server_from_text() → "filesystem (estimated)"    │
-│                         ↓                                    │
-│  CorrelationEngine:                                          │
-│  ├── Request ID matching                                     │
-│  ├── Session ID matching                                     │
-│  ├── Time proximity matching                                 │
-│  └── Event deduplication (timestamp + content hash)          │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ## Artifact Locations (Windows)
 
 ```
