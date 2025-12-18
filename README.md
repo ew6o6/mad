@@ -22,37 +22,52 @@ MAD (MCP Artifact Digger) extracts and analyzes MCP server activity from various
 ## Project Structure
 
 ```
-mad/
-├── mad/                        # Core Python package
+MCP_Artifact_Digger/
+├── mad/                           # Core Python package
 │   ├── __init__.py
-│   ├── api.py                  # FastAPI server & endpoints
+│   ├── api.py                     # FastAPI server & endpoints
 │   ├── models/
-│   │   ├── entities.py         # MCP Server, Tool, Resource models
-│   │   ├── events.py           # Timeline events (with deduplication)
-│   │   └── comparison.py       # Comparison matrix
+│   │   ├── __init__.py
+│   │   ├── entities.py            # MCP Server, Tool, Resource models
+│   │   ├── events.py              # Timeline events (with deduplication)
+│   │   └── comparison.py          # Comparison matrix
 │   ├── transformers/
-│   │   ├── config.py           # mcp.json parser
-│   │   ├── cursor_log.py       # Cursor MCP log parser
-│   │   ├── vscdb.py            # state.vscdb SQLite parser
-│   │   ├── agent_transcript.py # agent-transcripts JSON parser
-│   │   ├── network.py          # HAR network capture parser
-│   │   └── server_inference.py # MCP server inference utility
+│   │   ├── __init__.py
+│   │   ├── base.py                # Base transformer class
+│   │   ├── config.py              # mcp.json parser
+│   │   ├── cursor_log.py          # Cursor MCP log parser
+│   │   ├── vscdb.py               # state.vscdb SQLite parser
+│   │   ├── agent_transcript.py    # agent-transcripts JSON parser
+│   │   ├── network.py             # HAR network capture parser
+│   │   ├── server_log.py          # MCP server JSONL log parser
+│   │   ├── mcps_folder.py         # MCPS folder artifact parser
+│   │   └── server_inference.py    # MCP server inference utility
 │   ├── correlation/
-│   │   └── engine.py           # Event correlation engine
+│   │   ├── __init__.py
+│   │   └── engine.py              # Event correlation engine
 │   └── analysis/
-│       └── comparative.py      # Local vs Remote analysis
-├── web/                        # Web dashboard
+│       ├── __init__.py
+│       └── comparative.py         # Local vs Remote analysis
+├── web/                           # Web dashboard
 │   ├── index.html
 │   ├── css/style.css
 │   └── js/
 │       ├── app.js
 │       ├── timeline.js
 │       └── comparison.js
-├── samples/                    # Sample artifacts for testing
-├── tests/                      # Test suite
-├── pyproject.toml              # Project configuration
+├── samples/                       # Sample artifacts for testing
+│   ├── agent-transcript-sample.json
+│   ├── MCP user-filesystem.log
+│   ├── MCP user-Notion.log
+│   ├── notion-mcp.har
+│   └── state.vscdb
+├── tests/                         # Test suite
+│   └── __init__.py
+├── .gitignore
+├── LICENSE                        # MIT License
+├── pyproject.toml                 # Project configuration
 ├── requirements.txt
-├── run_server.py               # Development server runner
+├── run_server.py                  # Development server runner
 └── README.md
 ```
 
@@ -175,11 +190,66 @@ curl http://localhost:8000/api/timeline
 curl http://localhost:8000/api/comparison/matrix
 ```
 
+## Comparison Matrix
+
+### Artifact Availability
+
+| Artifact | Local STDIO | Custom Remote | Official Remote |
+|----------|-------------|---------------|-----------------|
+| mcp.json config | Full | Full | Full |
+| Cursor logs | Full | Full | Full |
+| state.vscdb | Full | Full | Full |
+| agent-transcripts | Full | Full | Full |
+| Server request log | None | **Full** | None |
+| Server response log | None | **Full** | None |
+| File access log | None | **Full** | None |
+| Network capture | None | Full | Partial (encrypted) |
+
+### Forensic Capabilities
+
+| Capability | Local STDIO | Custom Remote | Official Remote |
+|------------|-------------|---------------|-----------------|
+| Timeline reconstruction | Medium | **High** | Medium |
+| Action attribution | Low | **High** | Medium |
+| Data exfiltration tracking | Low | **High** | Low |
+| Security event detection | Low | **High** | Low |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Web Dashboard                             │
+│  Upload → Analysis → Entities → Timeline (Filter/Expand)     │
+└────────────────────────┬────────────────────────────────────┘
+                         │ REST API
+                         ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  FastAPI Backend                             │
+├─────────────────────────────────────────────────────────────┤
+│  Transformers:                                               │
+│  ├── VSCDBTransformer         (state.vscdb → conversations) │
+│  ├── AgentTranscriptTransformer (*.json → MCP calls)        │
+│  ├── CursorLogTransformer     (MCP *.log → server info)     │
+│  ├── ConfigTransformer        (mcp.json → entities)         │
+│  ├── NetworkTransformer       (*.har → JSON-RPC events)     │
+│  └── ServerLogTransformer     (*.jsonl → events)            │
+│                         ↓                                    │
+│  Server Inference:                                           │
+│  └── infer_server_from_text() → "filesystem (estimated)"    │
+│                         ↓                                    │
+│  CorrelationEngine:                                          │
+│  ├── Request ID matching                                     │
+│  ├── Session ID matching                                     │
+│  ├── Time proximity matching                                 │
+│  └── Event deduplication (timestamp + content hash)          │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ## Artifact Locations (Windows)
 
 ```
 # state.vscdb (conversation history)
-%APPDATA%\Cursor\User\workspaceStorage\<workspace-id>\state.vscdb
+%APPDATA%\Cursor\User\globalStorage\state.vscdb
 
 # MCP server logs
 %APPDATA%\Cursor\logs\<date>\window1\exthost\anysphere.cursor-mcp\MCP *.log
@@ -188,7 +258,7 @@ curl http://localhost:8000/api/comparison/matrix
 %USERPROFILE%\.cursor\projects\<project-path>\agent-transcripts\*.json
 
 # MCP configuration
-%APPDATA%\Cursor\User\globalStorage\saoudrizwan.claude-dev\settings\mcp.json
+%USERPROFILE%\.cursor\mcp.json
 ```
 
 ## References
